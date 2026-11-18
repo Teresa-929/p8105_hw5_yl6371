@@ -39,5 +39,68 @@ ggplot(birthday_df, aes(x = group_size, y = probability)) +
 
 As the group size increases, the probability of sharing a birthday also increases. When there are more than 50 people, the probability is almost 100%. It is more likely that two people share a birthday that we might expect.
 
+# Problem 2
+```{r}
+files_df = tibble(
+  file_name = list.files("data", pattern = "\\.csv$")
+)
 
+files_df 
+```
 
+```{r}
+files_df = files_df |> 
+  mutate(
+    data = map(file_name, ~ read_csv(file.path("data", .x), show_col_types = FALSE))
+  )
+
+files_df
+```
+
+```{r}
+files_df = files_df |> 
+  mutate(
+    arm = if_else(str_detect(file_name, "^con"), "control", "experimental"),
+    subject_id = str_extract(file_name, "\\d+")
+  )
+
+files_df
+```
+
+```{r}
+longitudinal_df = files_df |> 
+  unnest(cols = data) |> 
+  pivot_longer(
+    cols = starts_with("week"),
+    names_to = "week",
+    values_to = "observation"
+  ) |> 
+  mutate(
+    week = as.numeric(str_extract(week, "\\d+"))
+  )
+
+longitudinal_df
+```
+
+```{r}
+longitudinal_df |> 
+  ggplot(
+    aes(
+      x = week,
+      y = observation,
+      group = interaction(arm, subject_id),
+      color = arm
+    )
+  ) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Observations on Eanch Subject Over Time",
+    x = "Week",
+    y = "Observation",
+    color = "Group"
+  ) +
+  theme_minimal()
+```
+
+The experimental group shows a stronger overall upward trend than the control group. The difference between the groups becomes more noticeable in later weeks.
