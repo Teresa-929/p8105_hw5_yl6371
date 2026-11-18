@@ -104,3 +104,100 @@ longitudinal_df |>
 ```
 
 The experimental group shows a stronger overall upward trend than the control group. The difference between the groups becomes more noticeable in later weeks.
+
+# Problem 3
+```{r}
+sim_t_test = function(mu) {
+  data = rnorm(n = 30, mean = mu, sd = 5)
+  test = t.test(data, mu = 0)
+  broom::tidy(test) |> 
+    select(estimate, p.value)
+}
+```
+
+```{r}
+set.seed(123)
+
+sim_results = tibble(
+  mu = 0:6
+) |> 
+  mutate(
+    results = map(mu, ~ map_dfr(1:5000, \(x) sim_t_test(.x)))
+  ) |> 
+  unnest(results)
+
+sim_results
+```
+
+```{r}
+power_df = sim_results |> 
+  group_by(mu) |> 
+  summarize(
+    power = mean(p.value < 0.05)
+  )
+
+power_df
+```
+
+```{r}
+ggplot(power_df, aes(x = mu, y = power)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Power vs. True Mean",
+    x = "True Value of mu",
+    y = "Proportion of Null Hypotheses Rejected"
+  ) +
+  theme_minimal()
+```
+
+As the effect size increases, the power of the test increases. When the true mean is close to 0, the power is low. As the true mean increases, the power increases and approaches 1.
+
+```{r}
+rejected_df = sim_results |>
+  filter(p.value < 0.05) |> 
+  group_by(mu) |> 
+  summarize(
+    rejected_mean = mean(estimate)
+  )
+
+rejected_df
+```
+
+```{r}
+mean_df = sim_results |> 
+  group_by(mu) |> 
+  summarize(
+    mean_estimate = mean(estimate)
+  )
+
+mean_df
+```
+
+
+```{r}
+comparison_df = mean_df |> 
+  left_join(rejected_df, by = "mu")
+
+comparison_df
+```
+
+```{r}
+comparison_df |> 
+  pivot_longer(
+    cols = c(mean_estimate, rejected_mean),
+    names_to = "type",
+    values_to = "average_estimate"
+  ) |> 
+  ggplot(aes(x = mu, y = average_estimate, color = type)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Average Estimate Mean vs. True Mean",
+    x = "True Value of mu",
+    y = "Average Estimate of mu",
+    color = "Sample Type"
+  )
+```
+
+No, not always equal. When the true mean is small and positive, the average estimate among samples that reject the null hypothesis is higher than the true mean. This is because samples with larger estimated effects are more likely to produce statistically significant results. With the true mean increases, the difference becomes smaller because the power approaches 1.
